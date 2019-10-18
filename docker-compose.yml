@@ -1,0 +1,19 @@
+version: '2'
+
+volumes:
+  gopkg:
+
+services:
+  app:
+    image: golang:1.12
+    command: go run docker-cluster-exporter
+    working_dir: /usr/src/docker-cluster-exporter
+    volumes:
+      - ./:/usr/src/docker-cluster-exporter
+      - gopkg:/go/pkg
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys:/host/sys
+    privileged: true
+    pid: host
+    ports:
+      - 9476
