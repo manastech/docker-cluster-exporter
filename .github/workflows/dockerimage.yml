@@ -3,12 +3,18 @@ name: Docker Image CI
 on: [push]
 
 jobs:
-
   build:
- 
     runs-on: ubuntu-latest
- 
+
     steps:
-    - uses: actions/checkout@v1
-    - name: Build the Docker image
-      run: docker build . --tag juanwaj/docker-cluster-exporter
+      - uses: actions/checkout@v1
+      - name: Build the Docker image
+        run: docker build . --tag docker.pkg.github.com/waj/docker-cluster-exporter/docker-cluster-exporter
+
+      - name: Docker Login
+        run: echo ${TOKEN} | docker login -u github --password-stdin docker.pkg.github.com
+        env:
+          TOKEN: ${{ secrets.TOKEN }}
+
+      - name: Push Docker Image
+        run: docker push docker.pkg.github.com/waj/docker-cluster-exporter/docker-cluster-exporter
