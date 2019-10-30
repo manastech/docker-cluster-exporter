@@ -39,20 +39,13 @@ var (
 	docker *client.Client
 )
 
-// docker_container_memory_usage_bytes
-// docker_container_memory_reservation_bytes
-// docker_container_memory_limit_bytes
-//   {
-//     name,
-//     stack,
-//     service,
-//   }
-
 type dockerCollector struct {
 }
 
 func (c dockerCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- memUsageDesc
+	ch <- memReservationDesc
+	ch <- memLimitDesc
 }
 
 func (c dockerCollector) Collect(ch chan<- prometheus.Metric) {
