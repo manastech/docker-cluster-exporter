@@ -36,6 +36,7 @@ var (
 		"Memory limit for the container in bytes",
 		labels, nil,
 	)
+	docker *client.Client
 )
 
 // docker_container_memory_usage_bytes
@@ -55,12 +56,6 @@ func (c dockerCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c dockerCollector) Collect(ch chan<- prometheus.Metric) {
-	docker, err := client.NewEnvClient()
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	containers, err := docker.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
 		log.Fatal(err)
@@ -189,8 +184,13 @@ func firstLabel(container *types.Container, labels ...string) string {
 }
 
 func main() {
-	reg := prometheus.NewRegistry()
+	var err error
+	docker, err = client.NewEnvClient()
+	if err != nil {
+		log.Fatal(err)
+	}
 
+	reg := prometheus.NewRegistry()
 	reg.Register(dockerCollector{})
 
 	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
