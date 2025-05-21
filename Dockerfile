@@ -10,6 +10,7 @@ ADD . /usr/src/docker-cluster-exporter/
 COPY --from=mods /go/pkg/mod/ /go/pkg/mod/
 WORKDIR /usr/src/docker-cluster-exporter
 
+RUN apk add --no-cache gcc musl-dev # required to build on arm64
 RUN go install docker-cluster-exporter
 
 
