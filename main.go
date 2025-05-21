@@ -160,6 +160,21 @@ func stackService(container *types.Container) (string, string) {
 		return stackAndService[0], stackAndService[1]
 	}
 
+	swarmStackService := container.Labels["com.docker.swarm.service.name"]
+	if swarmStackService != "" {
+		swarmNamespace := container.Labels["com.docker.stack.namespace"]
+		if swarmNamespace != "" {
+			service := strings.TrimPrefix(swarmStackService, swarmNamespace+"_")
+			return swarmNamespace, service
+		}
+		// Fallback to no namespace available - we're almost making stuff up here
+		stackAndService := strings.SplitN(swarmStackService, "_", 2)
+		if len(stackAndService) > 1 {
+			return stackAndService[0], stackAndService[1]
+		}
+		return "-", swarmStackService
+	}
+
 	stack := container.Labels["com.docker.compose.project"]
 	service := container.Labels["com.docker.compose.service"]
 	return stack, service
