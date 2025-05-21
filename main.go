@@ -49,6 +49,7 @@ func (c dockerCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c dockerCollector) Collect(ch chan<- prometheus.Metric) {
+	cgroupVersion := detectCgroupVersion()
 	containers, err := docker.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
 		log.Fatal(err)
@@ -58,18 +59,14 @@ func (c dockerCollector) Collect(ch chan<- prometheus.Metric) {
 		name := containerName(&container)
 		stack, service := stackService(&container)
 
-		usageBytes, err := readSimpleValueFile("/host/sys/fs/cgroup/memory/docker/" + container.ID + "/memory.usage_in_bytes")
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		memoryStat, err := readMapFile("/host/sys/fs/cgroup/memory/docker/" + container.ID + "/memory.stat")
+		usageBytes := containerUsageBytes(container.ID, cgroupVersion)
+		totalCache := containerTotalCacheBytes(container.ID, cgroupVersion)
 
 		ch <- prometheus.MustNewConstMetric(
 			memUsageDesc,
 			prometheus.GaugeValue,
 
-			float64(usageBytes-memoryStat["total_cache"]),
+			float64(usageBytes-totalCache),
 			name, stack, service,
 		)
 
@@ -94,6 +91,32 @@ func (c dockerCollector) Collect(ch chan<- prometheus.Metric) {
 			name, stack, service,
 		)
 	}
+}
+
+func detectCgroupVersion() string {
+	return "v1" // FIXME: implement
+}
+
+func containerTotalCacheBytes(containerId string, cgroupVersion string) int64 {
+	if cgroupVersion == "v2" {
+		log.Fatal("cgroups v2 not yet supported") // FIXME: implement
+	}
+	memoryStat, err := readMapFile("/host/sys/fs/cgroup/memory/docker/" + containerId + "/memory.stat")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return memoryStat["total_cache"]
+}
+
+func containerUsageBytes(containerId string, cgroupVersion string) int64 {
+	if cgroupVersion == "v2" {
+		log.Fatal("cgroups v2 not yet supported") // FIXME: implement
+	}
+	usageBytes, err := readSimpleValueFile("/host/sys/fs/cgroup/memory/docker/" + containerId + "/memory.usage_in_bytes")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return usageBytes
 }
 
 func readSimpleValueFile(path string) (int64, error) {
