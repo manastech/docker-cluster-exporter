@@ -94,7 +94,10 @@ func (c dockerCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func detectCgroupVersion() string {
-	return "v1" // FIXME: implement
+	if cgroupVersion, ok := os.LookupEnv("DOCKER_CLUSTER_CGROUP_VERSION"); ok {
+		return cgroupVersion
+	}
+	return "v1"
 }
 
 func containerTotalCacheBytes(containerId string, cgroupVersion string) int64 {
