@@ -102,7 +102,7 @@ func detectCgroupVersion() string {
 
 func containerTotalCacheBytes(containerId string, cgroupVersion string) int64 {
 	if cgroupVersion == "v2" {
-		log.Fatal("cgroups v2 not yet supported") // FIXME: implement
+		return 0 // FIXME: implement
 	}
 	memoryStat, err := readMapFile("/host/sys/fs/cgroup/memory/docker/" + containerId + "/memory.stat")
 	if err != nil {
@@ -112,10 +112,11 @@ func containerTotalCacheBytes(containerId string, cgroupVersion string) int64 {
 }
 
 func containerUsageBytes(containerId string, cgroupVersion string) int64 {
+	usageBytesFile := "/host/sys/fs/cgroup/memory/docker/" + containerId + "/memory.usage_in_bytes"
 	if cgroupVersion == "v2" {
-		log.Fatal("cgroups v2 not yet supported") // FIXME: implement
+		usageBytesFile = "/host/docker-" + containerId + ".scope/memory.current"
 	}
-	usageBytes, err := readSimpleValueFile("/host/sys/fs/cgroup/memory/docker/" + containerId + "/memory.usage_in_bytes")
+	usageBytes, err := readSimpleValueFile(usageBytesFile)
 	if err != nil {
 		log.Fatal(err)
 	}
