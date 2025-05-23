@@ -49,6 +49,7 @@ func (c dockerCollector) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (c dockerCollector) Collect(ch chan<- prometheus.Metric) {
+	cgroupVersion := detectCgroupVersion()
 	containers, err := docker.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
 		log.Fatal(err)
@@ -58,18 +59,14 @@ func (c dockerCollector) Collect(ch chan<- prometheus.Metric) {
 		name := containerName(&container)
 		stack, service := stackService(&container)
 
-		usageBytes, err := readSimpleValueFile("/host/sys/fs/cgroup/memory/docker/" + container.ID + "/memory.usage_in_bytes")
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		memoryStat, err := readMapFile("/host/sys/fs/cgroup/memory/docker/" + container.ID + "/memory.stat")
+		usageBytes := containerUsageBytes(container.ID, cgroupVersion)
+		totalCache := containerTotalCacheBytes(container.ID, cgroupVersion)
 
 		ch <- prometheus.MustNewConstMetric(
 			memUsageDesc,
 			prometheus.GaugeValue,
 
-			float64(usageBytes-memoryStat["total_cache"]),
+			float64(usageBytes-totalCache),
 			name, stack, service,
 		)
 
@@ -94,6 +91,41 @@ func (c dockerCollector) Collect(ch chan<- prometheus.Metric) {
 			name, stack, service,
 		)
 	}
+}
+
+func detectCgroupVersion() string {
+	if cgroupVersion, ok := os.LookupEnv("DOCKER_CLUSTER_CGROUP_VERSION"); ok {
+		return cgroupVersion
+	}
+	return "v1"
+}
+
+func containerTotalCacheBytes(containerId string, cgroupVersion string) int64 {
+	if cgroupVersion == "v2" {
+		memoryStat, err := readMapFile("/host/docker-" + containerId + ".scope/memory.stat")
+		if err != nil {
+			log.Fatal(err)
+		}
+		// As per `docker stats` docs: https://docs.docker.com/reference/cli/docker/container/stats/#description
+		return memoryStat["inactive_file"]
+	}
+	memoryStat, err := readMapFile("/host/sys/fs/cgroup/memory/docker/" + containerId + "/memory.stat")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return memoryStat["total_cache"]
+}
+
+func containerUsageBytes(containerId string, cgroupVersion string) int64 {
+	usageBytesFile := "/host/sys/fs/cgroup/memory/docker/" + containerId + "/memory.usage_in_bytes"
+	if cgroupVersion == "v2" {
+		usageBytesFile = "/host/docker-" + containerId + ".scope/memory.current"
+	}
+	usageBytes, err := readSimpleValueFile(usageBytesFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return usageBytes
 }
 
 func readSimpleValueFile(path string) (int64, error) {
@@ -158,6 +190,21 @@ func stackService(container *types.Container) (string, string) {
 	if rancherStackService != "" {
 		stackAndService := strings.Split(rancherStackService, "/")
 		return stackAndService[0], stackAndService[1]
+	}
+
+	swarmStackService := container.Labels["com.docker.swarm.service.name"]
+	if swarmStackService != "" {
+		swarmNamespace := container.Labels["com.docker.stack.namespace"]
+		if swarmNamespace != "" {
+			service := strings.TrimPrefix(swarmStackService, swarmNamespace+"_")
+			return swarmNamespace, service
+		}
+		// Fallback to no namespace available - we're almost making stuff up here
+		stackAndService := strings.SplitN(swarmStackService, "_", 2)
+		if len(stackAndService) > 1 {
+			return stackAndService[0], stackAndService[1]
+		}
+		return "-", swarmStackService
 	}
 
 	stack := container.Labels["com.docker.compose.project"]
