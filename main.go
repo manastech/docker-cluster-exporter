@@ -102,7 +102,12 @@ func detectCgroupVersion() string {
 
 func containerTotalCacheBytes(containerId string, cgroupVersion string) int64 {
 	if cgroupVersion == "v2" {
-		return 0 // FIXME: implement
+		memoryStat, err := readMapFile("/host/docker-" + containerId + ".scope/memory.stat")
+		if err != nil {
+			log.Fatal(err)
+		}
+		// As per `docker stats` docs: https://docs.docker.com/reference/cli/docker/container/stats/#description
+		return memoryStat["inactive_file"]
 	}
 	memoryStat, err := readMapFile("/host/sys/fs/cgroup/memory/docker/" + containerId + "/memory.stat")
 	if err != nil {
